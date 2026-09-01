@@ -1,46 +1,154 @@
 # Workflow to ensure whenever a Github PR is submitted, 
-# a JIRA ticket gets created automatically. 
-name: Manual Workflow
+# An issue ticket gets created automatically. 
+name: AR
+#Only read access to the contents of the repository is required for this workflow.
+#In deploy job, rights are extended.
+permissions:
+  contents: read
 
-# Controls when the action will run. 
+# Controls when the action will run. On push to the main branch.
+#Exept changes in .gitignore, README.md, CONTRIBUTING.md, and LICENSE.txt files. 
 on:
-  # Triggers the workflow on pull request events but only for the master branch
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '.gitignore'
+      - 'README.md'
+      - 'CONTRIBUTING.md'
+      - 'LICENSE.txt'
+
+  #  on pull request to the main branch.
   pull_request_target:
     types: [opened, reopened]
+    branches:
+      - main
 
-  # Allows you to run this workflow manually from the Actions tab
+  #on manual trigger(force deployment).
   workflow_dispatch:
+#Older runs will be cancelled if a new run is triggered.
+concurrency:
+  group: 'AR'
+  cancel-in-progress: true 
 
 jobs:
-  test-transition-issue:
-    name: Convert Github Issue to Jira Issue
+  #test job:
+  #Checkout repo
+  #Setup Node
+  #run linters and scripts to check for broken links.
+  test:
+    env:
+      URL_CHECKER_TIMEOUT: ${{ vars.URL_CHECKER_TIMEOUT }}
+    name: Test
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
       uses: actions/checkout@master
 
-    - name: Login
-      uses: atlassian/gajira-login@master
-      env:
-        JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
-        JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
-        JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
-        
-    - name: Create NEW JIRA ticket
-      id: create
-      uses: atlassian/gajira-create@v2.0.1
+    - name: Setup Node
+      uses: actions/setup-node@v4
       with:
-        project: CONUPDATE
-        issuetype: Task
-        summary: |
-          Github PR [Assign the ND component]  | Repo: ${{ github.repository }}  | PR# ${{github.event.number}}
-        description: |
-           Repo link: https://github.com/${{ github.repository }}   
-           PR no. ${{ github.event.pull_request.number }} 
-           PR title: ${{ github.event.pull_request.title }}  
-           PR description: ${{ github.event.pull_request.description }}  
-           In addition, please resolve other issues, if any. 
-        fields: '{"components": [{"name":"Github PR"}], "customfield_16449":"https://classroom.udacity.com/", "customfield_16450":"Resolve the PR", "priority":{"id": "4"}}'
+        node-version: '18'
+        cache: 'npm'
 
-    - name: Log created issue
-      run: echo "Issue ${{ steps.create.outputs.issue }} was created"
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run linters
+      run: npm run lint:all
+
+    - name: Run Scripts
+      run: node script/url-checker.js -t ${{env.URL_CHECKER_TIMEOUT }}
+
+#Build job:
+#Precondition: test job must be successful.
+#Checkout repo
+#Setup page
+#Using cache to install dependencies
+#Using elevnty to build static pages.
+#upload the built pages to github-pages artifact.(_site)
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build static pages
+        run: |
+          REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2-)
+          PATH_PREFIX="/$REPO_NAME/" npm run eleventy:prod
+
+      - name: github-pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+#Deploy job:
+#Precondition: test and build jobs must be successful.
+#Download the built pages artifact.
+#Deploy the built pages to github pages.
+#Create an issue ticket with the deployment status and the URL of the deployed pages over GitHub CLI.
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    needs: [test, build]
+   
+    permissions:
+      pages: write
+      id-token: write
+      issues: write
+      contents: read
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download built site artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: github-pages
+          path: _site-artifact
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+
+      - name: Create deployment status issue
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GITHUB_TOKEN" | gh auth login --with-token
+
+          DEPLOY_STATUS="failed"
+          if [ "${{ steps.deployment.outcome }}" = "success" ]; then
+            DEPLOY_STATUS="succeeded"
+          fi
+
+          TODAY=$(date +"%Y-%m-%d")
+          REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2-)
+          KB_URL="https://${{ github.repository_owner }}.github.io/$REPO_NAME/"
+
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "$TODAY - Deployment: $DEPLOY_STATUS" \
+            --body "URL: $KB_URL"
+
+      - name: Fail workflow if deployment failed
+        if: steps.deployment.outcome != 'success'
+        run: exit 1
+

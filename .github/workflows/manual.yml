@@ -19,7 +19,7 @@ on:
       - 'LICENSE.txt'
 
   #  on pull request to the main branch.
-  pull_request_target:
+  pull_request:
     types: [opened, reopened]
     branches:
       - main
@@ -46,7 +46,7 @@ jobs:
       uses: actions/checkout@ba646f5fbd84f33cfadbeef917b7f096bcfebdfa
 
     - name: Setup Node
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
       with:
         node-version: '18'
         cache: 'npm'
@@ -76,10 +76,10 @@ jobs:
         uses: actions/checkout@ba646f5fbd84f33cfadbeef917b7f096bcfebdfa
 
       - name: Setup Pages
-        uses: actions/configure-pages@v4
+        uses: actions/configure-pages@1f0c5cde4bc74cd7e1254d0cb4de8d49e9068c7d
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '18'
           cache: 'npm'
@@ -93,7 +93,7 @@ jobs:
           PATH_PREFIX="/$REPO_NAME/" npm run eleventy:prod
 
       - name: github-pages
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa 
         with:
           path: _site
 
@@ -117,7 +117,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Download built site artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: github-pages
           path: _site-artifact
@@ -125,7 +125,7 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         continue-on-error: true
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e
 
       - name: Create deployment status issue
         if: always()

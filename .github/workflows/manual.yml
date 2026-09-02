@@ -43,7 +43,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
-      uses: actions/checkout@master
+      uses: actions/checkout@ba646f5fbd84f33cfadbeef917b7f096bcfebdfa
 
     - name: Setup Node
       uses: actions/setup-node@v4
@@ -73,7 +73,7 @@ jobs:
     needs: test
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@ba646f5fbd84f33cfadbeef917b7f096bcfebdfa
 
       - name: Setup Pages
         uses: actions/configure-pages@v4

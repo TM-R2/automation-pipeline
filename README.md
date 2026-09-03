@@ -132,9 +132,9 @@ The job should fail if any of its steps fail.
 
 Once you've successfully completed your project, you need to submit the following:
 
-1. The `deploy.yml` workflow file
-2. The link to your repository
-3. The link to your published knowledge base website on GitHub pages
+1. The `deploy.yml` workflow file -> [.github/workflows/manual.yml](https://github.com/TM-R2/automation-pipeline/blob/f97dfd294c42e84e40d88c1e29f0da762f86367d/.github/workflows/manual.yml)
+2. The link to your repository -> https://github.com/TM-R2/automation-pipeline
+3. The link to your published knowledge base website on GitHub pages -> https://tm-r2.github.io/automation-pipeline/
 
 ## Project Structure
 
